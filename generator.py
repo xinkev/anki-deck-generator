@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import IO
+from typing import IO, Generator, Literal
 import models
 import genanki
 import csv
@@ -11,29 +11,41 @@ import pykakasi
 from pathlib import Path
 from deck_ids import ids
 
-__file_paths = glob.glob("./**/*.csv", recursive=True)
 __kks = pykakasi.kakasi()
 # file path format: book(語彙,漢字)/chapater/type(jp, en, kanji)
 
 
-def generate():
-    print(f"Found {len(__file_paths)} files.\n{__file_paths}")
+def generate() -> Generator[str, None, None]:
+    __file_paths = glob.glob("./**/*.csv", recursive=True)
 
+    if __file_paths and len(__file_paths) > 0:
+        yield (f"Found {len(__file_paths)} files.\n{__file_paths}")
+        for msg in __generate_decks(__file_paths):
+            yield msg
+    else:
+        yield (
+            "No csv files found. Please make sure you have csv files in the same directory."
+        )
+
+
+def __generate_decks(paths: list[str]) -> Generator[str, None, None]:
     decks = []
-    for file_path in __file_paths:
-        with open(file_path, "r") as file:
+    for path in paths:
+        with open(path, "r") as file:
             csv_reader = csv.DictReader(file, delimiter="|")
             book, chapter, type_with_ext = Path(file.name).parts
             type = type_with_ext.removesuffix(".csv")
 
             if type == "vocab":
-                pass
+                yield (f"Generating vocab decks for {book}, {chapter}...")
                 decks += __generate_vocab_decks(book, chapter, csv_reader)
             else:
                 decks += __generate_kanji_deck(book, chapter, csv_reader)
+                yield (f"Generating kanji deck of {book}, {chapter}")
+
     anki_package = genanki.Package(decks)
     anki_package.write_to_file("so-matome.apkg")
-    print("Complete...")
+    yield ("Complete...")
 
 
 def __generate_vocab_decks(book: str, chapter: str,
@@ -111,4 +123,5 @@ def __get_str(value) -> str:
 
 
 if __name__ == '__main__':
-    generate()
+    for string in generate():
+        print(string)
