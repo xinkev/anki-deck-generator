@@ -1,37 +1,30 @@
 import random
+import logging
 import shelve
-
-from contextlib import contextmanager
-from typing import overload
 
 
 class DeckIds(object):
 
-    @contextmanager
-    def open(self):
-        try:
-            self.ids = shelve.open("deck_ids.db")
-            yield self
-        finally:
-            self.ids.close()
-
-    def saveKey(self, key: str) -> int:
-        try:
-            return self.ids[key]
-        except:
-            id = self.__generate_id()
+    def generate(self, key: str) -> int:
+        logging.info("Generating id for " + key)
+        with shelve.open("deck_ids.db") as ids:
             try:
-                if self.ids[key] == id:
-                    self.saveKey(key=key)
-            except:
-                self.ids[key] = id
+                id = ids[key]
+                logging.info("Found an existing id. Gonna use it.")
+                return id
+            except KeyError as e:
+                logging.info("Generating key")
 
-    def save(self, key: str, id: int or None = None) -> int:
-        if id:
-            self.ids[key] = id
-            return id
-        else:
-            return self.saveKey(key)
+                id = self.__generate_id()
+                while id in list(ids.values()):
+                    logging.info(
+                        "Key generated but found an existing key. generating again"
+                    )
+                    id = self.__generate_id()
+
+                ids[key] = id
+
+                return id
 
     def __generate_id(self) -> int:
         return random.randrange(1 << 30, 1 << 31)
