@@ -14,19 +14,48 @@ __kks = pykakasi.kakasi()
 
 
 def generate() -> Generator[str, None, None]:
-    __file_paths = glob.glob("./**/*.csv", recursive=True)
+    yield ("Finding CSV files...")
+    csv_files = find_file_paths("./**/*.csv")
+    yield generate_messages(csv_files)
+    anki_package: genanki.Package = None
 
-    if __file_paths and len(__file_paths) > 0:
-        yield (f"Found {len(__file_paths)} files.\n{__file_paths}")
-        for msg in __generate_decks(__file_paths):
-            yield msg
+    decks = yield from generate_decks(csv_files)
+    for msg in generate_decks(csv_files):
+        yield msg
+
+    if decks:
+        yield("Creating Anki package...")
+        anki_package = genanki.Package(decks)
+
+    if anki_package:
+        yield ("Finding media files...")
+        jpg_files = find_file_paths("./**/*.jpg")
+        yield generate_messages(jpg_files)
+
+        if jpg_files or len(jpg_files)>0:
+            yield ("Adding JPG files to the package...")
+            anki_package.media_files = jpg_files
+
+        anki_package.write_to_file("so-matome.apkg")
+        yield ("Complete...")
     else:
-        yield (
-            "No csv files found. Please make sure you have csv files in the same directory."
-        )
+        yield ("Hmm... I think something went wrong.")
 
 
-def __generate_decks(paths: list[str]) -> Generator[str, None, None]:
+def generate_messages(filepaths: list[str]) -> str:
+    if filepaths and len(filepaths) > 0:
+        return f"Found {len(filepaths)} files.\n{filepaths}"
+    else:
+        return "No files found. Please make sure you have files in the same directory."
+        
+
+
+def find_file_paths(pathname: str) -> list[str]:
+    return glob.glob(pathname, recursive=True)
+
+
+def generate_decks(
+        paths: list[str]) -> Generator[str, None, list[genanki.Deck]]:
     decks = []
     for path in paths:
         with open(path, "r") as file:
@@ -36,18 +65,15 @@ def __generate_decks(paths: list[str]) -> Generator[str, None, None]:
 
             if type == "vocab":
                 yield (f"Generating vocab decks for {book}, {chapter}...")
-                decks += __generate_vocab_decks(book, chapter, csv_reader)
+                decks += generate_vocab_decks(book, chapter, csv_reader)
             else:
-                decks += __generate_kanji_deck(book, chapter, csv_reader)
+                decks += generate_kanji_deck(book, chapter, csv_reader)
                 yield (f"Generating kanji deck of {book}, {chapter}")
-
-    anki_package = genanki.Package(decks)
-    anki_package.write_to_file("so-matome.apkg")
-    yield ("Complete...")
+    return decks
 
 
-def __generate_vocab_decks(book: str, chapter: str,
-                           csv_reader: csv.DictReader) -> list[genanki.Deck]:
+def generate_vocab_decks(book: str, chapter: str,
+                         csv_reader: csv.DictReader) -> list[genanki.Deck]:
     decks = []
 
     jp_deck_name = f"{book}::{chapter}::jp"
@@ -65,22 +91,22 @@ def __generate_vocab_decks(book: str, chapter: str,
         note = genanki.Note(model=models.GOI_EN,
                             fields=[
                                 meaning,
-                                __generate_furigana(japanese),
-                                __generate_furigana(__get_str(example))
+                                generate_furigana(japanese),
+                                generate_furigana(__get_str(example))
                             ])
         en_deck.add_note(note)
         note = genanki.Note(model=models.GOI_JP,
                             fields=[
-                                __generate_furigana(japanese), meaning,
-                                __generate_furigana(__get_str(example))
+                                generate_furigana(japanese), meaning,
+                                generate_furigana(__get_str(example))
                             ])
         jp_deck.add_note(note)
 
     return decks
 
 
-def __generate_kanji_deck(book: str, chapter: str,
-                          csv_reader: csv.DictReader) -> list[genanki.Deck]:
+def generate_kanji_deck(book: str, chapter: str,
+                        csv_reader: csv.DictReader) -> list[genanki.Deck]:
     decks = []
     deck_name = f"{book}::{chapter}::kanji"
     deck_id = ids.generate(deck_name)
@@ -94,7 +120,7 @@ def __generate_kanji_deck(book: str, chapter: str,
                                 ji,
                                 __get_str(on),
                                 __get_str(kun),
-                                __generate_furigana(__get_str(example))
+                                generate_furigana(__get_str(example))
                             ])
         print("adding note to -> " + deck_name + "::" + str(deck_id))
         deck.add_note(note)
@@ -102,7 +128,7 @@ def __generate_kanji_deck(book: str, chapter: str,
     return decks
 
 
-def __generate_furigana(jp: str) -> str:
+def generate_furigana(jp: str) -> str:
     words = __kks.convert(jp)
     new_str = ""
     for (index, word) in enumerate(words):
