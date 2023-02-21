@@ -14,32 +14,30 @@ __kks = pykakasi.kakasi()
 
 
 def generate() -> Generator[str, None, None]:
-    yield ("Finding CSV files...")
+    print ("Finding CSV files...")
     csv_files = find_file_paths("./**/*.csv")
-    yield generate_messages(csv_files)
+    generate_messages(csv_files)
     anki_package: genanki.Package = None
 
-    decks = yield from generate_decks(csv_files)
-    for msg in generate_decks(csv_files):
-        yield msg
+    decks = generate_decks(csv_files)
 
     if decks:
-        yield("Creating Anki package...")
+        print("Creating Anki package...")
         anki_package = genanki.Package(decks)
 
     if anki_package:
-        yield ("Finding media files...")
+        print ("Finding media files...")
         jpg_files = find_file_paths("./**/*.jpg")
-        yield generate_messages(jpg_files)
+        generate_messages(jpg_files)
 
         if jpg_files or len(jpg_files)>0:
-            yield ("Adding JPG files to the package...")
+            print ("Adding JPG files to the package...")
             anki_package.media_files = jpg_files
 
         anki_package.write_to_file("so-matome.apkg")
-        yield ("Complete...")
+        print ("Complete...")
     else:
-        yield ("Hmm... I think something went wrong.")
+        print ("Hmm... I think something went wrong.")
 
 
 def generate_messages(filepaths: list[str]) -> str:
@@ -64,11 +62,11 @@ def generate_decks(
             type = type_with_ext.removesuffix(".csv")
 
             if type == "vocab":
-                yield (f"Generating vocab decks for {book}, {chapter}...")
+                print (f"Generating vocab decks for {book}, {chapter}...")
                 decks += generate_vocab_decks(book, chapter, csv_reader)
             else:
                 decks += generate_kanji_deck(book, chapter, csv_reader)
-                yield (f"Generating kanji deck of {book}, {chapter}")
+                print (f"Generating kanji deck of {book}, {chapter}")
     return decks
 
 
@@ -147,5 +145,4 @@ def __get_str(value) -> str:
 
 
 if __name__ == '__main__':
-    for string in generate():
-        print(string)
+    generate()
